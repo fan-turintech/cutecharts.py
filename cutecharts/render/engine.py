@@ -89,24 +89,13 @@ class Javascript:
         lib: Optional[Union[str, Sequence]] = None,
         css: Optional[Union[str, Sequence]] = None,
     ):
-        if isinstance(lib, str):
-            lib = [lib]
-        elif lib is None:
-            lib = []
-        if isinstance(css, str):
-            css = [css]
-        elif css is None:
-            css = []
-        self.lib = lib
-        self.css = css
+        self.lib = [lib] if isinstance(lib, str) else (lib or [])
+        self.css = [css] if isinstance(css, str) else (css or [])
         self.data = data or ""
 
     def _repr_javascript_(self):
-        r = ""
-        for c in self.css:
-            r += _css_t % c
-        for l in self.lib:
-            r += _lib_t1 % l
+        r = ''.join([_css_t % c for c in self.css])
+        r += ''.join([_lib_t1 % l for l in self.lib])
         r += self.data
         r += _lib_t2 * len(self.lib)
         return r
@@ -126,7 +115,7 @@ class RenderEngine:
             self.before_render()
 
         html = tmpl.render(chart=self)
-        with open(dest, "w+", encoding="utf8") as f:
+        with open(dest, "w", encoding="utf8") as f:
             f.write(html)
 
         return html
@@ -139,25 +128,18 @@ class RenderEngine:
             NotebookTemplateType.get(template_type).get(CurrentConfig.NOTEBOOK_TYPE)
         )
 
-        if CurrentConfig.NOTEBOOK_TYPE == NotebookType.JUPYTER_NOTEBOOK:
-            return HTML(tmpl.render(chart=self))
-
-        if CurrentConfig.NOTEBOOK_TYPE == NotebookType.JUPYTER_LAB:
-            return HTML(tmpl.render(chart=self))
+        return HTML(tmpl.render(chart=self))
 
     def _produce_assets_cfg(self):
         local_cfg, notebook_cfg = [], []
         for dep in self.assets_deps:
             value = CurrentConfig.ASSETS_DEPS_MAP.get(dep)
-            if not value:
-                continue
-            local_cfg.append("{}{}.js".format(self.assets_host, value))
-            notebook_cfg.append("'{}':'{}{}'".format(dep, self.assets_host, value))
+            if value:  # Changed to positive check to reduce nesting
+                local_cfg.append(f"{self.assets_host}{value}.js")
+                notebook_cfg.append(f"'{dep}':'{self.assets_host}{value}'")
         return local_cfg, notebook_cfg
 
     def load_javascript(self):
-        scripts = []
-        for dep in self.assets_deps:
-            value = CurrentConfig.ASSETS_DEPS_MAP.get(dep)
-            scripts.append("{}{}.js".format(self.assets_host, value))
+        scripts = [f"{self.assets_host}{CurrentConfig.ASSETS_DEPS_MAP.get(dep)}.js"
+                   for dep in self.assets_deps]
         return Javascript(lib=scripts)
